@@ -9,7 +9,7 @@
   "engines": {
     "node": ">=16",
     "npm": ">=7"
-},
+  },
   "license": "MIT",
   "devDependencies": {
     "eslint-config-prettier": "8.5.0",
@@ -26,5 +26,8 @@
       "prettier --write",
       "solhint"
     ]
+  },
+  "dependencies": {
+    "dotenv": "^16.0.3"
   }
 }

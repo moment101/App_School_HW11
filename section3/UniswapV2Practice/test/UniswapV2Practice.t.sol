@@ -30,7 +30,7 @@ contract UniswapV2PracticeTest is Test {
         deal(maker, 100 ether);
         testUSDC.mint(maker, 10000 * 10 ** testUSDC.decimals());
 
-        // mint 1 ETH to taker
+        // mint 100 ETH to taker
         deal(taker, 100 ether);
 
         // create ETH/USDC pair
@@ -42,9 +42,34 @@ contract UniswapV2PracticeTest is Test {
         vm.label(address(testUSDC), "TestUSDC");
     }
 
+    modifier addLiquidity() {
+        vm.startPrank(maker);
+        testUSDC.approve(address(UNISWAP_V2_ROUTER), 10000 * 10 ** testUSDC.decimals());
+        UNISWAP_V2_ROUTER.addLiquidityETH{ value: 100 ether }(
+            address(testUSDC),
+            10000 * 10 ** testUSDC.decimals(),
+            0,
+            0,
+            maker,
+            block.timestamp
+        );
+        vm.stopPrank();
+        _;
+    }
+
     // # Practice 1: maker add liquidity (100 ETH, 10000 USDC)
     function test_maker_addLiquidityETH() public {
         // Implement here
+        vm.startPrank(maker);
+        testUSDC.approve(address(UNISWAP_V2_ROUTER), 10000 * 10 ** testUSDC.decimals());
+        UNISWAP_V2_ROUTER.addLiquidityETH{ value: 100 ether }(
+            address(testUSDC),
+            10000 * 10 ** testUSDC.decimals(),
+            0,
+            0,
+            maker,
+            block.timestamp
+        );
 
         // Checking
         IUniswapV2Pair wethUsdcPair = IUniswapV2Pair(UNISWAP_V2_FACTORY.getPair(address(WETH9), address(testUSDC)));
@@ -53,32 +78,64 @@ contract UniswapV2PracticeTest is Test {
         assertEq(reserve1, 100 ether);
     }
 
-    // # Practice 2: taker swap exact 1 ETH for testUSDC
-    function test_taker_swapExactETHForTokens() public {
+    // # Practice 2: taker swap exact 100 ETH for testUSDC
+    function test_taker_swapExactETHForTokens() public addLiquidity {
         // Impelement here
+        vm.startPrank(taker);
+        address[] memory path = new address[](2);
+        path[0] = WETH9;
+        path[1] = address(testUSDC);
+        UNISWAP_V2_ROUTER.swapExactETHForTokens{ value: 100 ether }(0, path, taker, block.timestamp);
 
         // Checking
         // # Disscussion 1: discuss why 4992488733 ?
+        // 100 * 0.997 = 99.7
+        // 10000 - (100 * 10000 / (100 + 99.7)) = 4992.488733
         assertEq(testUSDC.balanceOf(taker), 4992488733);
         assertEq(taker.balance, 0);
     }
 
     // # Practice 3: taker swap exact 10000 USDC for ETH
-    function test_taker_swapExactTokensForETH() public {
+    function test_taker_swapExactTokensForETH() public addLiquidity {
         // Impelement here
+        // mint 10000 usdc for taker
+        uint amountIn = 10000 * 10 ** testUSDC.decimals();
+
+        testUSDC.mint(taker, amountIn);
+
+        vm.startPrank(taker);
+        testUSDC.approve(address(UNISWAP_V2_ROUTER), amountIn);
+
+        address[] memory path = new address[](2);
+        path[0] = address(testUSDC);
+        path[1] = WETH9;
+
+        UNISWAP_V2_ROUTER.swapExactTokensForETH(amountIn, 0, path, taker, block.timestamp);
 
         // Checking
         // # Disscussion 2: original balance is 100 ether, so delta is 49924887330996494742, but why 49924887330996494742 ?
+        // 10000 * 0.997 = 9970
+        // 100 - (100*10000 / (10000 + 9970)) = 49924887330996494742
         assertEq(testUSDC.balanceOf(taker), 0);
         assertEq(taker.balance, 149924887330996494742);
     }
 
     // # Practice 4: maker remove all liquidity
-    function test_taker_removeLiquidityETH() public {
+    function test_taker_removeLiquidityETH() public addLiquidity {
+        IUniswapV2Pair wethUsdcPair = IUniswapV2Pair(UNISWAP_V2_FACTORY.getPair(address(WETH9), address(testUSDC)));
+
         // Implement here
+        vm.startPrank(maker);
+        uint liquidity = wethUsdcPair.balanceOf(maker);
+        console.log("Liquidity:", liquidity); // Liquidity: 999999999999000
+        wethUsdcPair.approve(address(UNISWAP_V2_ROUTER), liquidity);
+        UNISWAP_V2_ROUTER.removeLiquidityETH(address(testUSDC), liquidity, 0, 0, maker, block.timestamp);
 
         // Checking
-        IUniswapV2Pair wethUsdcPair = IUniswapV2Pair(UNISWAP_V2_FACTORY.getPair(address(WETH9), address(testUSDC)));
+        // IUniswapV2Pair wethUsdcPair = IUniswapV2Pair(UNISWAP_V2_FACTORY.getPair(address(WETH9), address(testUSDC)));
+        console.log("maker ETH balance:", maker.balance); // 99_999999999900000000
+        console.log("maker USDC balance:", testUSDC.balanceOf(maker)); // 9999_999999
+
         (uint112 reserve0, uint112 reserve1, ) = wethUsdcPair.getReserves();
         assertEq(reserve0, 1);
         assertEq(reserve1, 100000000);
